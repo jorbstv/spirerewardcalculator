@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Slay the Spire Reward Calculator</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+    input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; }
+    input[type=number] { -moz-appearance: textfield; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+const { useState, useCallback, useEffect, useMemo } = React;
+
+const CONSTANTS = {
+  HALLWAY_COMMON_START: 65.0, HALLWAY_UNCOMMON_START: 37.0, HALLWAY_RARE_DEFAULT: -2.0,
+  ELITE_COMMON_START: 55.0, ELITE_UNCOMMON_START: 40.0, ELITE_RARE_DEFAULT: 5.0,
+  POTION_CHANCE_START: 40.0, HALLWAY_GOLD_MIN: 10, HALLWAY_GOLD_MAX: 20,
+  ELITE_GOLD_MIN: 25, ELITE_GOLD_MAX: 35,
+};
+
+const CHARACTERS = {
+  IRONCLAD: { name: 'Ironclad', commons: 20, uncommons: 36, rares: 16 },
+  SILENT: { name: 'Silent', commons: 19, uncommons: 33, rares: 19 },
+  DEFECT: { name: 'Defect', commons: 18, uncommons: 36, rares: 17 },
+  WATCHER: { name: 'Watcher', commons: 19, uncommons: 35, rares: 17 },
+};
+
+const CARD_DATABASE = {
+  IRONCLAD: {
+    COMMON: ['Anger', 'Armaments', 'Body Slam', 'Clash', 'Cleave', 'Clothesline', 'Flex', 'Havoc', 'Headbutt', 'Heavy Blade', 'Iron Wave', 'Perfected Strike', 'Pommel Strike', 'Shrug It Off', 'Sword Boomerang', 'Thunderclap', 'True Grit', 'Twin Strike', 'Warcry', 'Wild Strike'],
+    UNCOMMON: ['Battle Trance', 'Blood for Blood', 'Bloodletting', 'Burning Pact', 'Carnage', 'Combust', 'Dark Embrace', 'Disarm', 'Dropkick', 'Dual Wield', 'Entrench', 'Evolve', 'Feel No Pain', 'Fire Breathing', 'Flame Barrier', 'Ghostly Armor', 'Hemokinesis', 'Infernal Blade', 'Inflame', 'Intimidate', 'Metallicize', 'Power Through', 'Pummel', 'Rage', 'Rampage', 'Reckless Charge', 'Rupture', 'Searing Blow', 'Second Wind', 'Seeing Red', 'Sentinel', 'Sever Soul', 'Shockwave', 'Spot Weakness', 'Uppercut', 'Whirlwind'],
+    RARE: ['Barricade', 'Berserk', 'Bludgeon', 'Brutality', 'Corruption', 'Demon Form', 'Double Tap', 'Exhume', 'Feed', 'Fiend Fire', 'Immolate', 'Impervious', 'Juggernaut', 'Limit Break', 'Offering', 'Reaper'],
+  },
+  SILENT: {
+    COMMON: ['Acrobatics', 'Backflip', 'Bane', 'Blade Dance', 'Cloak and Dagger', 'Dagger Spray', 'Dagger Throw', 'Deadly Poison', 'Deflect', 'Dodge and Roll', 'Flying Knee', 'Outmaneuver', 'Piercing Wail', 'Poisoned Stab', 'Prepared', 'Quick Slash', 'Slice', 'Sneaky Strike', 'Sucker Punch'],
+    UNCOMMON: ['Accuracy', 'All-Out Attack', 'Backstab', 'Blur', 'Bouncing Flask', 'Calculated Gamble', 'Caltrops', 'Catalyst', 'Choke', 'Concentrate', 'Crippling Cloud', 'Dash', 'Distraction', 'Endless Agony', 'Escape Plan', 'Eviscerate', 'Expertise', 'Finisher', 'Flechettes', 'Footwork', 'Heel Hook', 'Infinite Blades', 'Leg Sweep', 'Masterful Stab', 'Noxious Fumes', 'Predator', 'Reflex', 'Riddle with Holes', 'Setup', 'Skewer', 'Tactician', 'Terror', 'Well-Laid Plans'],
+    RARE: ['A Thousand Cuts', 'Adrenaline', 'After Image', 'Alchemize', 'Bullet Time', 'Burst', 'Corpse Explosion', 'Die Die Die', 'Doppelganger', 'Envenom', 'Glass Knife', 'Grand Finale', 'Malaise', 'Nightmare', 'Phantasmal Killer', 'Storm of Steel', 'Tools of the Trade', 'Unload', 'Wraith Form'],
+  },
+  DEFECT: {
+    COMMON: ['Ball Lightning', 'Barrage', 'Beam Cell', 'Charge Battery', 'Claw', 'Cold Snap', 'Compile Driver', 'Coolheaded', 'Go for the Eyes', 'Hologram', 'Leap', 'Rebound', 'Recursion', 'Stack', 'Steam Barrier', 'Streamline', 'Sweeping Beam', 'TURBO'],
+    UNCOMMON: ['Aggregate', 'Auto-Shields', 'Blizzard', 'Boot Sequence', 'Bullseye', 'Capacitor', 'Chaos', 'Chill', 'Consume', 'Darkness', 'Defragment', 'Doom and Gloom', 'Double Energy', 'Equilibrium', 'FTL', 'Force Field', 'Fusion', 'Genetic Algorithm', 'Glacier', 'Heatsinks', 'Hello World', 'Loop', 'Melter', 'Overclock', 'Recycle', 'Reinforced Body', 'Reprogram', 'Rip and Tear', 'Scrape', 'Self Repair', 'Skim', 'Static Discharge', 'Storm', 'Sunder', 'Tempest', 'White Noise'],
+    RARE: ['All for One', 'Amplify', 'Biased Cognition', 'Buffer', 'Core Surge', 'Creative AI', 'Echo Form', 'Electrodynamics', 'Fission', 'Hyperbeam', 'Machine Learning', 'Meteor Strike', 'Multi-Cast', 'Rainbow', 'Reboot', 'Seek', 'Thunder Strike'],
+  },
+  WATCHER: {
+    COMMON: ['Bowling Bash', 'Consecrate', 'Crescendo', 'Crush Joints', 'Cut Through Fate', 'Empty Body', 'Empty Fist', 'Evaluate', 'Flurry of Blows', 'Flying Sleeves', 'Follow-Up', 'Halt', 'Just Lucky', 'Pressure Points', 'Prostrate', 'Protect', 'Sash Whip', 'Third Eye', 'Tranquility'],
+    UNCOMMON: ['Battle Hymn', 'Carve Reality', 'Collect', 'Conclude', 'Deceive Reality', 'Empty Mind', 'Fasting', 'Fear No Evil', 'Foreign Influence', 'Foresight', 'Indignation', 'Inner Peace', 'Like Water', 'Meditate', 'Mental Fortress', 'Nirvana', 'Perseverance', 'Pray', 'Reach Heaven', 'Rushdown', 'Sanctity', 'Sands of Time', 'Signature Move', 'Simmering Fury', 'Study', 'Swivel', 'Talk to the Hand', 'Tantrum', 'Wallop', 'Wave of the Hand', 'Weave', 'Wheel Kick', 'Windmill Strike', 'Worship', 'Wreath of Flame'],
+    RARE: ['Alpha', 'Blasphemy', 'Brilliance', 'Conjure Blade', 'Deus Ex Machina', 'Deva Form', 'Devotion', 'Establishment', 'Judgment', 'Lesson Learned', 'Master Reality', 'Omniscience', 'Ragnarok', 'Scrawl', 'Spirit Shield', 'Vault', 'Wish'],
+  },
+};
+
+class RewardState {
+  constructor() {
+    this.hallwayCommon = CONSTANTS.HALLWAY_COMMON_START;
+    this.hallwayUncommon = CONSTANTS.HALLWAY_UNCOMMON_START;
+    this.hallwayRare = CONSTANTS.HALLWAY_RARE_DEFAULT;
+    this.eliteCommon = CONSTANTS.ELITE_COMMON_START;
+    this.eliteUncommon = CONSTANTS.ELITE_UNCOMMON_START;
+    this.eliteRare = CONSTANTS.ELITE_RARE_DEFAULT;
+    this.startingHallwayRare = CONSTANTS.HALLWAY_RARE_DEFAULT;
+    this.startingEliteRare = CONSTANTS.ELITE_RARE_DEFAULT;
+    this.potionChance = CONSTANTS.POTION_CHANCE_START;
+    this.totalCommons = 0;
+    this.totalUncommons = 0;
+    this.totalRares = 0;
+    this.totalPotions = 0;
+    this.totalGold = 0;
+  }
+  resetAllProbabilities() {
+    this.hallwayCommon = CONSTANTS.HALLWAY_COMMON_START;
+    this.hallwayUncommon = CONSTANTS.HALLWAY_UNCOMMON_START;
+    this.hallwayRare = this.startingHallwayRare;
+    this.eliteCommon = CONSTANTS.ELITE_COMMON_START;
+    this.eliteUncommon = CONSTANTS.ELITE_UNCOMMON_START;
+    this.eliteRare = this.startingEliteRare;
+  }
+  adjustProbabilitiesForCommon() {
+    if (this.hallwayCommon > 0) { this.hallwayCommon -= 1.0; this.hallwayRare += 1.0; }
+    if (this.eliteCommon > 0) { this.eliteCommon -= 1.0; this.eliteRare += 1.0; }
+  }
+}
+
+function generateReward(commonChance, uncommonChance, rareChance) {
+  const roll = Math.random() * 100.0;
+  if (roll < rareChance) return 'RARE';
+  if (roll - rareChance < uncommonChance) return 'UNCOMMON';
+  return 'COMMON';
+}
+
+function processFight(state, isElite) {
+  for (let i = 0; i < 3; i++) {
+    const commonChance = isElite ? state.eliteCommon : state.hallwayCommon;
+    const uncommonChance = isElite ? state.eliteUncommon : state.hallwayUncommon;
+    const rareChance = isElite ? state.eliteRare : state.hallwayRare;
+    const reward = generateReward(commonChance, uncommonChance, rareChance);
+    if (reward === 'COMMON') { state.totalCommons++; state.adjustProbabilitiesForCommon(); }
+    else if (reward === 'UNCOMMON') { state.totalUncommons++; }
+    else { state.totalRares++; state.resetAllProbabilities(); }
+  }
+  const gotPotion = Math.random() * 100.0 < state.potionChance;
+  if (gotPotion) { state.totalPotions++; state.potionChance -= 10.0; }
+  else { state.potionChance += 10.0; }
+  state.potionChance = Math.max(0, Math.min(100, state.potionChance));
+  const goldMin = isElite ? CONSTANTS.ELITE_GOLD_MIN : CONSTANTS.HALLWAY_GOLD_MIN;
+  const goldMax = isElite ? CONSTANTS.ELITE_GOLD_MAX : CONSTANTS.HALLWAY_GOLD_MAX;
+  state.totalGold += goldMin + Math.floor(Math.random() * (goldMax - goldMin + 1));
+}
+
+function runSimulation(path, iterations, startingRareChance, onProgress) {
+  let totalCommons = 0, totalUncommons = 0, totalRares = 0, totalPotions = 0, totalGold = 0;
+  const commonDist = {}, uncommonDist = {}, rareDist = {}, potionDist = {}, goldDist = {};
+  const progressInterval = Math.max(1, Math.floor(iterations / 100));
+
+  for (let i = 0; i < iterations; i++) {
+    const state = new RewardState();
+    state.hallwayRare = startingRareChance;
+    state.eliteRare = startingRareChance + 7.0;
+    for (const fight of path) processFight(state, fight === 'E');
+    
+    totalCommons += state.totalCommons;
+    totalUncommons += state.totalUncommons;
+    totalRares += state.totalRares;
+    totalPotions += state.totalPotions;
+    totalGold += state.totalGold;
+    commonDist[state.totalCommons] = (commonDist[state.totalCommons] || 0) + 1;
+    uncommonDist[state.totalUncommons] = (uncommonDist[state.totalUncommons] || 0) + 1;
+    rareDist[state.totalRares] = (rareDist[state.totalRares] || 0) + 1;
+    potionDist[state.totalPotions] = (potionDist[state.totalPotions] || 0) + 1;
+    goldDist[state.totalGold] = (goldDist[state.totalGold] || 0) + 1;
+    if (i % progressInterval === 0 && onProgress) onProgress(Math.round((i / iterations) * 100));
+  }
+
+  const toPercent = (dist) => {
+    const result = {};
+    Object.keys(dist).sort((a, b) => a - b).forEach(k => { result[k] = (dist[k] / iterations) * 100; });
+    return result;
+  };
+
+  return {
+    avgCommons: totalCommons / iterations, avgUncommons: totalUncommons / iterations,
+    avgRares: totalRares / iterations, avgPotions: totalPotions / iterations,
+    avgGold: totalGold / iterations, commonsDist: toPercent(commonDist),
+    uncommonsDist: toPercent(uncommonDist), raresDist: toPercent(rareDist),
+    potionsDist: toPercent(potionDist), goldDist: toPercent(goldDist),
+  };
+}
+
+function binomialCoefficient(n, k) {
+  if (k > n - k) k = n - k;
+  let result = 1;
+  for (let i = 0; i < k; i++) { result *= (n - i); result /= (i + 1); }
+  return result;
+}
+
+function binomialProbability(n, k, p) {
+  if (k > n || k < 0) return 0;
+  return binomialCoefficient(n, k) * Math.pow(p, k) * Math.pow(1 - p, n - k);
+}
+
+function calculateTimesSeenDistribution(poolSize, targetCards, cardDistribution) {
+  const timesSeenDist = {};
+  for (const [numCardsStr, probPercent] of Object.entries(cardDistribution)) {
+    const numCards = parseInt(numCardsStr);
+    const probOfThisCount = probPercent / 100.0;
+    const probTarget = targetCards / poolSize;
+    for (let k = 0; k <= numCards; k++) {
+      const probKTargets = binomialProbability(numCards, k, probTarget);
+      timesSeenDist[k] = (timesSeenDist[k] || 0) + probKTargets * probOfThisCount * 100.0;
+    }
+  }
+  return timesSeenDist;
+}
+
+function convolveDistributions(dist1, dist2) {
+  const result = {};
+  for (const [k1Str, p1Pct] of Object.entries(dist1)) {
+    for (const [k2Str, p2Pct] of Object.entries(dist2)) {
+      const sum = parseInt(k1Str) + parseInt(k2Str);
+      result[sum] = (result[sum] || 0) + (p1Pct / 100.0) * (p2Pct / 100.0) * 100.0;
+    }
+  }
+  return result;
+}
+
+function calculateCardProbabilities(selectedCards, character, results) {
+  if (!results) return null;
+  const charData = CHARACTERS[character];
+  const cardDb = CARD_DATABASE[character];
+  let targetCommons = 0, targetUncommons = 0, targetRares = 0;
+  for (const card of selectedCards) {
+    if (cardDb.COMMON.includes(card)) targetCommons++;
+    else if (cardDb.UNCOMMON.includes(card)) targetUncommons++;
+    else if (cardDb.RARE.includes(card)) targetRares++;
+  }
+  if (targetCommons + targetUncommons + targetRares === 0) return null;
+
+  const commonTimesDist = calculateTimesSeenDistribution(charData.commons, targetCommons, results.commonsDist);
+  const uncommonTimesDist = calculateTimesSeenDistribution(charData.uncommons, targetUncommons, results.uncommonsDist);
+  const rareTimesDist = calculateTimesSeenDistribution(charData.rares, targetRares, results.raresDist);
+  let combinedDist = convolveDistributions(convolveDistributions(commonTimesDist, uncommonTimesDist), rareTimesDist);
+
+  const probAtLeastOnce = 1.0 - (combinedDist[0] || 0) / 100.0;
+  let expectedTimesSeen = 0;
+  for (const [k, pct] of Object.entries(combinedDist)) expectedTimesSeen += parseInt(k) * (pct / 100.0);
+
+  return { targetCommons, targetUncommons, targetRares, totalTargets: targetCommons + targetUncommons + targetRares,
+    probAtLeastOnce, expectedTimesSeen, timesSeenDist: combinedDist };
+}
+
+const PathInput = ({ label, value, onChange, color }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+    <label style={{ fontFamily: 'Georgia, serif', fontSize: '14px', color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '2px' }}>{label}</label>
+    <input type="text" value={value} onChange={(e) => onChange(e.target.value.toUpperCase().replace(/[^HE]/g, ''))}
+      placeholder="e.g., HHHEHHEHHE" style={{ padding: '12px 16px', fontSize: '18px', fontFamily: 'monospace',
+        letterSpacing: '4px', background: 'rgba(0,0,0,0.4)', border: `2px solid ${color}40`, borderRadius: '4px', color: '#fff', outline: 'none' }} />
+    <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#666' }}>
+      {value.length} fights • {(value.match(/H/g) || []).length}H • {(value.match(/E/g) || []).length}E
+    </div>
+  </div>
+);
+
+const StatDisplay = ({ label, value, diff, color }) => {
+  const diffColor = diff > 0.01 ? '#4ade80' : diff < -0.01 ? '#f87171' : '#666';
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <span style={{ fontFamily: 'Georgia, serif', fontSize: '14px', color: '#aaa' }}>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <span style={{ fontFamily: 'monospace', fontSize: '16px', fontWeight: 600, color }}>{value.toFixed(2)}</span>
+        {diff !== undefined && Math.abs(diff) > 0.001 && (
+          <span style={{ fontFamily: 'monospace', fontSize: '12px', color: diffColor, padding: '2px 6px', background: `${diffColor}15`, borderRadius: '4px' }}>
+            {diff > 0 ? '+' : ''}{diff.toFixed(2)}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const DistributionTable = ({ distribution, label }) => {
+  if (!distribution || Object.keys(distribution).length === 0) return null;
+  const entries = Object.entries(distribution).map(([k, v]) => [parseInt(k), v]).sort((a, b) => a[0] - b[0]);
+  let cumulative = 0;
+  const atLeast = {};
+  [...entries].reverse().forEach(([count, pct]) => { cumulative += pct; atLeast[count] = cumulative; });
+
+  return (
+    <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '16px', marginTop: '16px' }}>
+      <div style={{ fontFamily: 'Georgia, serif', fontSize: '12px', color: '#666', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '12px' }}>{label} Distribution</div>
+      <div style={{ fontFamily: 'monospace', fontSize: '11px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '40px 70px 70px', gap: '4px', color: '#666', paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '8px' }}>
+          <span>#</span><span style={{ textAlign: 'right' }}>Exact</span><span style={{ textAlign: 'right' }}>≥</span>
+        </div>
+        <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+          {entries.map(([count, pct]) => (
+            <div key={count} style={{ display: 'grid', gridTemplateColumns: '40px 70px 70px', gap: '4px', padding: '2px 0', color: '#ccc' }}>
+              <span style={{ color: '#888' }}>{count}</span>
+              <span style={{ textAlign: 'right' }}>{pct.toFixed(2)}%</span>
+              <span style={{ textAlign: 'right', color: '#9ca3af' }}>{atLeast[count].toFixed(2)}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PathResults = ({ results, label, color, otherResults }) => {
+  const [selectedDist, setSelectedDist] = useState('raresDist');
+  if (!results) return <div style={{ flex: 1, background: 'rgba(0,0,0,0.2)', borderRadius: '12px', padding: '24px', border: `1px solid ${color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>Run simulation to see results</div>;
+  const getDiff = (key) => otherResults ? results[key] - otherResults[key] : undefined;
+  const distOptions = [{ key: 'commonsDist', label: 'Commons' }, { key: 'uncommonsDist', label: 'Uncommons' }, { key: 'raresDist', label: 'Rares' }, { key: 'potionsDist', label: 'Potions' }, { key: 'goldDist', label: 'Gold' }];
+
+  return (
+    <div style={{ flex: 1, background: 'rgba(0,0,0,0.2)', borderRadius: '12px', padding: '24px', border: `1px solid ${color}30` }}>
+      <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '18px', fontWeight: 600, color, marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '3px' }}>{label}</h3>
+      <StatDisplay label="Commons" value={results.avgCommons} diff={getDiff('avgCommons')} color="#9ca3af" />
+      <StatDisplay label="Uncommons" value={results.avgUncommons} diff={getDiff('avgUncommons')} color="#60a5fa" />
+      <StatDisplay label="Rares" value={results.avgRares} diff={getDiff('avgRares')} color="#fbbf24" />
+      <StatDisplay label="Potions" value={results.avgPotions} diff={getDiff('avgPotions')} color="#a78bfa" />
+      <StatDisplay label="Gold" value={results.avgGold} diff={getDiff('avgGold')} color="#fcd34d" />
+      <div style={{ display: 'flex', gap: '8px', marginTop: '20px', flexWrap: 'wrap' }}>
+        {distOptions.map(opt => (
+          <button key={opt.key} onClick={() => setSelectedDist(opt.key)} style={{ padding: '6px 12px', fontSize: '11px', fontFamily: 'monospace', background: selectedDist === opt.key ? `${color}30` : 'rgba(0,0,0,0.3)', border: `1px solid ${selectedDist === opt.key ? color : 'transparent'}`, borderRadius: '4px', color: selectedDist === opt.key ? color : '#888', cursor: 'pointer' }}>{opt.label}</button>
+        ))}
+      </div>
+      <DistributionTable distribution={results[selectedDist]} label={distOptions.find(o => o.key === selectedDist)?.label || ''} />
+    </div>
+  );
+};
+
+const CardButton = ({ name, rarity, selected, onClick }) => {
+  const colors = { COMMON: { bg: 'rgba(156,163,175,0.2)', border: '#6b7280', text: '#9ca3af' }, UNCOMMON: { bg: 'rgba(96,165,250,0.2)', border: '#3b82f6', text: '#60a5fa' }, RARE: { bg: 'rgba(251,191,36,0.2)', border: '#f59e0b', text: '#fbbf24' } }[rarity];
+  return <button onClick={onClick} style={{ padding: '4px 10px', fontSize: '11px', fontFamily: 'monospace', background: selected ? colors.bg : 'rgba(0,0,0,0.3)', border: `1px solid ${selected ? colors.border : 'transparent'}`, borderRadius: '4px', color: selected ? colors.text : '#666', cursor: 'pointer', whiteSpace: 'nowrap' }}>{name}</button>;
+};
+
+const CardProbabilityPanel = ({ results1, results2, path1, path2 }) => {
+  const [character, setCharacter] = useState('SILENT');
+  const [selectedCards, setSelectedCards] = useState(new Set());
+  const [selectedPath, setSelectedPath] = useState('1');
+  const charData = CHARACTERS[character];
+  const cardDb = CARD_DATABASE[character];
+
+  const toggleCard = (card) => setSelectedCards(prev => { const n = new Set(prev); n.has(card) ? n.delete(card) : n.add(card); return n; });
+  const clearAll = () => setSelectedCards(new Set());
+
+  const selectedResults = selectedPath === '1' ? results1 : results2;
+  const probResults = useMemo(() => calculateCardProbabilities(Array.from(selectedCards), character, selectedResults), [selectedCards, character, selectedResults]);
+  const counts = useMemo(() => {
+    let c = 0, u = 0, r = 0;
+    for (const card of selectedCards) { if (cardDb.COMMON.includes(card)) c++; else if (cardDb.UNCOMMON.includes(card)) u++; else if (cardDb.RARE.includes(card)) r++; }
+    return { common: c, uncommon: u, rare: r, total: c + u + r };
+  }, [selectedCards, cardDb]);
+
+  return (
+    <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '12px', padding: '24px', border: '1px solid rgba(255,255,255,0.05)', marginTop: '30px' }}>
+      <h2 style={{ fontFamily: 'Georgia, serif', fontSize: '20px', fontWeight: 600, color: '#10b981', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '3px' }}>Card Probability Calculator</h2>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginBottom: '20px', alignItems: 'flex-end' }}>
+        <div>
+          <label style={{ display: 'block', fontSize: '11px', color: '#666', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Path</label>
+          <select value={selectedPath} onChange={(e) => setSelectedPath(e.target.value)} style={{ padding: '8px 12px', fontSize: '13px', fontFamily: 'monospace', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+            <option value="1">Path 1</option><option value="2">Path 2</option>
+          </select>
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: '11px', color: '#666', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Character</label>
+          <select value={character} onChange={(e) => { setCharacter(e.target.value); setSelectedCards(new Set()); }} style={{ padding: '8px 12px', fontSize: '13px', fontFamily: 'monospace', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+            {Object.entries(CHARACTERS).map(([key, val]) => <option key={key} value={key}>{val.name}</option>)}
+          </select>
+        </div>
+        <button onClick={clearAll} style={{ padding: '8px 16px', fontSize: '12px', fontFamily: 'monospace', background: 'rgba(239,68,68,0.2)', border: '1px solid #ef4444', borderRadius: '4px', color: '#f87171', cursor: 'pointer' }}>Clear All</button>
+        <div style={{ fontFamily: 'monospace', fontSize: '12px', color: '#888', marginLeft: 'auto' }}>
+          Selected: <span style={{ color: '#9ca3af' }}>{counts.common}C</span> <span style={{ color: '#60a5fa' }}>{counts.uncommon}U</span> <span style={{ color: '#fbbf24' }}>{counts.rare}R</span> <span style={{ color: '#fff' }}>({counts.total})</span>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '24px' }}>
+        <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '16px', maxHeight: '500px', overflowY: 'auto' }}>
+          {['COMMON', 'UNCOMMON', 'RARE'].map(rarity => (
+            <div key={rarity} style={{ marginBottom: '16px' }}>
+              <div style={{ fontFamily: 'Georgia, serif', fontSize: '13px', color: rarity === 'COMMON' ? '#9ca3af' : rarity === 'UNCOMMON' ? '#60a5fa' : '#fbbf24', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px', paddingBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>{rarity} ({cardDb[rarity].length})</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {cardDb[rarity].map(card => <CardButton key={card} name={card} rarity={rarity} selected={selectedCards.has(card)} onClick={() => toggleCard(card)} />)}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '16px' }}>
+          <div style={{ fontFamily: 'Georgia, serif', fontSize: '12px', color: '#666', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '16px' }}>Results</div>
+          {!selectedResults ? <div style={{ color: '#666', fontStyle: 'italic', fontSize: '13px' }}>Run simulation first.</div> : !probResults ? <div style={{ color: '#666', fontStyle: 'italic', fontSize: '13px' }}>Select at least one card.</div> : (
+            <>
+              <div style={{ fontFamily: 'monospace', fontSize: '12px', marginBottom: '16px' }}>
+                <div style={{ color: '#888', marginBottom: '8px' }}>Path: <span style={{ color: '#fff' }}>{selectedPath === '1' ? path1 : path2}</span></div>
+                <div style={{ color: '#888', marginBottom: '8px' }}>Character: <span style={{ color: '#fff' }}>{CHARACTERS[character].name}</span></div>
+                <div style={{ color: '#888', marginBottom: '16px' }}>Pool: {charData.commons}C / {charData.uncommons}U / {charData.rares}R</div>
+                <div style={{ background: 'rgba(16,185,129,0.1)', borderRadius: '6px', padding: '12px', marginBottom: '12px' }}>
+                  <div style={{ color: '#666', marginBottom: '4px' }}>Prob. seeing at least once:</div>
+                  <div style={{ fontSize: '24px', fontWeight: 600, color: '#10b981' }}>{(probResults.probAtLeastOnce * 100).toFixed(2)}%</div>
+                </div>
+                <div style={{ background: 'rgba(139,92,246,0.1)', borderRadius: '6px', padding: '12px' }}>
+                  <div style={{ color: '#666', marginBottom: '4px' }}>Expected times seen:</div>
+                  <div style={{ fontSize: '24px', fontWeight: 600, color: '#a78bfa' }}>{probResults.expectedTimesSeen.toFixed(2)}</div>
+                </div>
+              </div>
+              <DistributionTable distribution={probResults.timesSeenDist} label="Times Seen" />
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+function SlayRewardCalculator() {
+  const [path1, setPath1] = useState('HHHEHHEHHE');
+  const [path2, setPath2] = useState('HHHHHEEHHH');
+  const [iterations, setIterations] = useState(100000);
+  const [startingRare, setStartingRare] = useState(-2);
+  const [results1, setResults1] = useState(null);
+  const [results2, setResults2] = useState(null);
+  const [progress, setProgress] = useState(0);
+  const [isRunning, setIsRunning] = useState(false);
+
+  const runCalculation = useCallback(() => {
+    if (!path1 || !path2) return;
+    setIsRunning(true); setProgress(0);
+    setTimeout(() => {
+      const r1 = runSimulation(path1, iterations, startingRare, (p) => setProgress(p / 2));
+      setResults1(r1); setProgress(50);
+      setTimeout(() => {
+        const r2 = runSimulation(path2, iterations, startingRare, (p) => setProgress(50 + p / 2));
+        setResults2(r2); setProgress(100); setIsRunning(false);
+      }, 10);
+    }, 10);
+  }, [path1, path2, iterations, startingRare]);
+
+  useEffect(() => { runCalculation(); }, []);
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #0a0a0f 0%, #15151f 50%, #0d0d12 100%)', color: '#e0e0e0', fontFamily: 'Georgia, serif' }}>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'radial-gradient(ellipse at 20% 20%, rgba(139,92,246,0.03) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(251,191,36,0.03) 0%, transparent 50%)', pointerEvents: 'none' }} />
+      <header style={{ padding: '40px 20px 30px', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'relative' }}>
+        <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '6px', color: '#666', marginBottom: '12px', fontFamily: 'monospace' }}>Slay the Spire</div>
+        <h1 style={{ fontFamily: 'Georgia, serif', fontSize: 'clamp(24px, 5vw, 42px)', fontWeight: 700, background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', margin: 0, letterSpacing: '2px' }}>Reward Distribution Calculator</h1>
+        <p style={{ marginTop: '16px', color: '#666', fontSize: '14px', maxWidth: '600px', marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>Monte Carlo simulation for card reward distributions. Use <span style={{ fontFamily: 'monospace', color: '#9ca3af' }}>H</span> for Hallway and <span style={{ fontFamily: 'monospace', color: '#f59e0b' }}>E</span> for Elite.</p>
+      </header>
+      <main style={{ maxWidth: '1400px', margin: '0 auto', padding: '30px 20px' }}>
+        <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '24px', marginBottom: '30px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', marginBottom: '24px' }}>
+            <PathInput label="Path 1" value={path1} onChange={setPath1} color="#8b5cf6" />
+            <PathInput label="Path 2" value={path2} onChange={setPath2} color="#f59e0b" />
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', alignItems: 'flex-end' }}>
+            <div>
+              <label style={{ display: 'block', fontFamily: 'Georgia, serif', fontSize: '12px', color: '#666', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px' }}>Iterations</label>
+              <select value={iterations} onChange={(e) => setIterations(parseInt(e.target.value))} style={{ padding: '10px 16px', fontSize: '14px', fontFamily: 'monospace', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+                <option value={10000}>10,000</option><option value={50000}>50,000</option><option value={100000}>100,000</option><option value={500000}>500,000</option><option value={1000000}>1,000,000</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontFamily: 'Georgia, serif', fontSize: '12px', color: '#666', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px' }}>Starting Rare %</label>
+              <input type="number" value={startingRare} onChange={(e) => setStartingRare(parseInt(e.target.value) || 0)} min={-2} max={100} style={{ padding: '10px 16px', fontSize: '14px', fontFamily: 'monospace', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: '#fff', width: '80px' }} />
+            </div>
+            <button onClick={runCalculation} disabled={isRunning} style={{ padding: '12px 32px', fontSize: '14px', fontFamily: 'Georgia, serif', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '2px', background: isRunning ? 'rgba(139,92,246,0.3)' : 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)', border: 'none', borderRadius: '6px', color: '#fff', cursor: isRunning ? 'not-allowed' : 'pointer', boxShadow: isRunning ? 'none' : '0 4px 20px rgba(139,92,246,0.3)' }}>{isRunning ? 'Calculating...' : 'Calculate'}</button>
+            {isRunning && (
+              <div style={{ flex: 1, minWidth: '200px' }}>
+                <div style={{ height: '8px', background: 'rgba(0,0,0,0.4)', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${progress}%`, background: 'linear-gradient(90deg, #8b5cf6, #f59e0b)', transition: 'width 0.1s ease' }} />
+                </div>
+                <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#666', marginTop: '4px', textAlign: 'center' }}>{progress}%</div>
+              </div>
+            )}
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px' }}>
+          <PathResults results={results1} label="Path 1" color="#8b5cf6" otherResults={results2} />
+          <PathResults results={results2} label="Path 2" color="#f59e0b" otherResults={results1} />
+        </div>
+        <CardProbabilityPanel results1={results1} results2={results2} path1={path1} path2={path2} />
+        <div style={{ marginTop: '40px', padding: '24px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '14px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '16px' }}>How It Works</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', fontSize: '13px', color: '#777', lineHeight: 1.7 }}>
+            <div><strong style={{ color: '#aaa' }}>Card Rewards:</strong> Each fight gives 3 cards. Hallways: 65%C/37%U/-2%R. Elites: 55%C/40%U/5%R.</div>
+            <div><strong style={{ color: '#aaa' }}>Pity Timer:</strong> Each Common -1% common, +1% rare. Getting Rare resets to defaults.</div>
+            <div><strong style={{ color: '#aaa' }}>Potions:</strong> 40% base. Get: -10%, Miss: +10%. Clamped 0-100%.</div>
+            <div><strong style={{ color: '#aaa' }}>Card Probability:</strong> Uses binomial probability and distribution convolution.</div>
+          </div>
+        </div>
+      </main>
+      <footer style={{ textAlign: 'center', padding: '30px 20px', color: '#444', fontSize: '12px', fontFamily: 'monospace' }}>Based on Slay the Spire mechanics • Not affiliated with Mega Crit Games</footer>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<SlayRewardCalculator />);
+  </script>
+</body>
+</html>
