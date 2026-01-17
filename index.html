@@ -211,7 +211,7 @@ const SHOP_COMMON = 54.0;
 const SHOP_UNCOMMON = 37.0;
 const SHOP_RARE = 9.0;
 
-function processFight(state, fightType, includeShopCards = false) {
+function processFight(state, fightType, includeShopCards = false, nlothsGift = false) {
   // Shop: track visit count, optionally add cards to totals
   if (fightType === '$') {
     state.totalShops++;
@@ -240,9 +240,17 @@ function processFight(state, fightType, includeShopCards = false) {
   } else {
     // Normal/Elite: roll for each of 3 cards
     for (let i = 0; i < 3; i++) {
-      const commonChance = isElite ? state.eliteCommon : state.hallwayCommon;
+      let commonChance = isElite ? state.eliteCommon : state.hallwayCommon;
       const uncommonChance = isElite ? state.eliteUncommon : state.hallwayUncommon;
-      const rareChance = isElite ? state.eliteRare : state.hallwayRare;
+      let rareChance = isElite ? state.eliteRare : state.hallwayRare;
+      
+      // N'loth's Gift: triple rare chance, reduce common chance
+      if (nlothsGift) {
+        const rareIncrease = rareChance * 2; // triple = original + 2x original
+        rareChance = rareChance * 3;
+        commonChance = Math.max(0, commonChance - rareIncrease);
+      }
+      
       const reward = generateReward(commonChance, uncommonChance, rareChance);
       if (reward === 'COMMON') { state.combatCommons++; state.adjustProbabilitiesForCommon(); }
       else if (reward === 'UNCOMMON') { state.combatUncommons++; }
@@ -269,7 +277,7 @@ function processFight(state, fightType, includeShopCards = false) {
   state.totalGold += goldMin + Math.floor(Math.random() * (goldMax - goldMin + 1));
 }
 
-function runSimulation(path, iterations, startingRareChance, includeShopCards, onProgress) {
+function runSimulation(path, iterations, startingRareChance, includeShopCards, nlothsGift, onProgress) {
   let totalCommons = 0, totalUncommons = 0, totalRares = 0, totalPotions = 0, totalGold = 0;
   const commonDist = {}, uncommonDist = {}, rareDist = {}, potionDist = {}, goldDist = {};
   
@@ -294,7 +302,7 @@ function runSimulation(path, iterations, startingRareChance, includeShopCards, o
     const state = new RewardState();
     state.hallwayRare = startingRareChance;
     state.eliteRare = startingRareChance + 7.0;
-    for (const fight of path) processFight(state, fight, includeShopCards);
+    for (const fight of path) processFight(state, fight, includeShopCards, nlothsGift);
     
     // Total distributions (for display)
     totalCommons += state.totalCommons;
@@ -738,6 +746,7 @@ function SlayRewardCalculator() {
   const [iterations, setIterations] = useState(100000);
   const [startingRare, setStartingRare] = useState(-2);
   const [includeShopCards, setIncludeShopCards] = useState(true);
+  const [nlothsGift, setNlothsGift] = useState(false);
   const [results1, setResults1] = useState(null);
   const [results2, setResults2] = useState(null);
   const [progress, setProgress] = useState(0);
@@ -747,14 +756,14 @@ function SlayRewardCalculator() {
     if (!path1 || !path2) return;
     setIsRunning(true); setProgress(0);
     setTimeout(() => {
-      const r1 = runSimulation(path1, iterations, startingRare, includeShopCards, (p) => setProgress(p / 2));
+      const r1 = runSimulation(path1, iterations, startingRare, includeShopCards, false, (p) => setProgress(p / 2));
       setResults1(r1); setProgress(50);
       setTimeout(() => {
-        const r2 = runSimulation(path2, iterations, startingRare, includeShopCards, (p) => setProgress(50 + p / 2));
+        const r2 = runSimulation(path2, iterations, startingRare, includeShopCards, nlothsGift, (p) => setProgress(50 + p / 2));
         setResults2(r2); setProgress(100); setIsRunning(false);
       }, 10);
     }, 10);
-  }, [path1, path2, iterations, startingRare, includeShopCards]);
+  }, [path1, path2, iterations, startingRare, includeShopCards, nlothsGift]);
 
   useEffect(() => { runCalculation(); }, []);
 
@@ -787,6 +796,10 @@ function SlayRewardCalculator() {
               <input type="checkbox" checked={includeShopCards} onChange={(e) => setIncludeShopCards(e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#22c55e', cursor: 'pointer' }} />
               <span style={{ fontFamily: 'Georgia, serif', fontSize: '13px', color: includeShopCards ? '#22c55e' : '#666' }}>Include shop cards in rewards</span>
             </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '10px 0' }}>
+              <input type="checkbox" checked={nlothsGift} onChange={(e) => setNlothsGift(e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#f59e0b', cursor: 'pointer' }} />
+              <span style={{ fontFamily: 'Georgia, serif', fontSize: '13px', color: nlothsGift ? '#f59e0b' : '#666' }}>N'loth's Gift (Path 2)</span>
+            </label>
             <button onClick={runCalculation} disabled={isRunning} style={{ padding: '12px 32px', fontSize: '14px', fontFamily: 'Georgia, serif', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '2px', background: isRunning ? 'rgba(139,92,246,0.3)' : 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)', border: 'none', borderRadius: '6px', color: '#fff', cursor: isRunning ? 'not-allowed' : 'pointer', boxShadow: isRunning ? 'none' : '0 4px 20px rgba(139,92,246,0.3)' }}>{isRunning ? 'Calculating...' : 'Calculate'}</button>
             {isRunning && (
               <div style={{ flex: 1, minWidth: '200px' }}>
@@ -807,13 +820,13 @@ function SlayRewardCalculator() {
           <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '14px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '16px' }}>How It Works</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', fontSize: '13px', color: '#777', lineHeight: 1.7 }}>
             <div><strong style={{ color: '#aaa' }}>Card Rewards:</strong> Each fight gives 3 cards. Hallways: 65%C/37%U/-2%R. Elites: 55%C/40%U/5%R. Bosses: 3 guaranteed rares.</div>
-            <div><strong style={{ color: '#aaa' }}>Pity Timer:</strong> Each Common Seen: -1% common chance, +1% rare chance. Getting Rare resets to defaults. i.e. after 5 commons Hallways are 60%C/37%U/3%R</div>
+            <div><strong style={{ color: '#aaa' }}>Pity Timer:</strong> Each Common -1% common, +1% rare. Getting Rare resets to defaults.</div>
             <div><strong style={{ color: '#aaa' }}>Shops:</strong> 2 Attack + 2 Skill + 1 Power slot (54%C/37%U/9%R each) + 1 Colorless Uncommon + 1 Colorless Rare.</div>
             <div><strong style={{ color: '#aaa' }}>Card Probability:</strong> Uses hypergeometric (combat) combined with slot-based probability (shops).</div>
           </div>
         </div>
       </main>
-      <footer style={{ textAlign: 'center', padding: '30px 20px', color: '#444', fontSize: '12px', fontFamily: 'monospace' }}>Based on Slay the Spire mechanics • Not affiliated with Mega Crit Game</footer>
+      <footer style={{ textAlign: 'center', padding: '30px 20px', color: '#444', fontSize: '12px', fontFamily: 'monospace' }}>Based on Slay the Spire mechanics • Not affiliated with Mega Crit Games</footer>
     </div>
   );
 }
