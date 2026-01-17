@@ -37,26 +37,114 @@ const CHARACTERS = {
   WATCHER: { name: 'Watcher', commons: 19, uncommons: 35, rares: 17 },
 };
 
+// Helper to get all cards of a rarity as flat array (for combat rewards)
+function getCardsFlat(character, rarity) {
+  const data = CARD_DATABASE[character]?.[rarity];
+  if (!data) return [];
+  return [...(data.ATTACK || []), ...(data.SKILL || []), ...(data.POWER || [])];
+}
+
+// Helper to get card type
+function getCardType(character, card) {
+  const db = CARD_DATABASE[character];
+  for (const rarity of ['COMMON', 'UNCOMMON', 'RARE']) {
+    if (db[rarity]?.ATTACK?.includes(card)) return 'ATTACK';
+    if (db[rarity]?.SKILL?.includes(card)) return 'SKILL';
+    if (db[rarity]?.POWER?.includes(card)) return 'POWER';
+  }
+  return null;
+}
+
+// Helper to get card rarity
+function getCardRarity(character, card) {
+  const db = CARD_DATABASE[character];
+  for (const rarity of ['COMMON', 'UNCOMMON', 'RARE']) {
+    const allCards = [...(db[rarity]?.ATTACK || []), ...(db[rarity]?.SKILL || []), ...(db[rarity]?.POWER || [])];
+    if (allCards.includes(card)) return rarity;
+  }
+  return null;
+}
+
 const CARD_DATABASE = {
   IRONCLAD: {
-    COMMON: ['Anger', 'Armaments', 'Body Slam', 'Clash', 'Cleave', 'Clothesline', 'Flex', 'Havoc', 'Headbutt', 'Heavy Blade', 'Iron Wave', 'Perfected Strike', 'Pommel Strike', 'Shrug It Off', 'Sword Boomerang', 'Thunderclap', 'True Grit', 'Twin Strike', 'Warcry', 'Wild Strike'],
-    UNCOMMON: ['Battle Trance', 'Blood for Blood', 'Bloodletting', 'Burning Pact', 'Carnage', 'Combust', 'Dark Embrace', 'Disarm', 'Dropkick', 'Dual Wield', 'Entrench', 'Evolve', 'Feel No Pain', 'Fire Breathing', 'Flame Barrier', 'Ghostly Armor', 'Hemokinesis', 'Infernal Blade', 'Inflame', 'Intimidate', 'Metallicize', 'Power Through', 'Pummel', 'Rage', 'Rampage', 'Reckless Charge', 'Rupture', 'Searing Blow', 'Second Wind', 'Seeing Red', 'Sentinel', 'Sever Soul', 'Shockwave', 'Spot Weakness', 'Uppercut', 'Whirlwind'],
-    RARE: ['Barricade', 'Berserk', 'Bludgeon', 'Brutality', 'Corruption', 'Demon Form', 'Double Tap', 'Exhume', 'Feed', 'Fiend Fire', 'Immolate', 'Impervious', 'Juggernaut', 'Limit Break', 'Offering', 'Reaper'],
+    COMMON: {
+      ATTACK: ['Anger', 'Body Slam', 'Clash', 'Cleave', 'Clothesline', 'Headbutt', 'Heavy Blade', 'Iron Wave', 'Perfected Strike', 'Pommel Strike', 'Sword Boomerang', 'Thunderclap', 'Twin Strike', 'Wild Strike'],
+      SKILL: ['Armaments', 'Flex', 'Havoc', 'Shrug It Off', 'True Grit', 'Warcry'],
+      POWER: [],
+    },
+    UNCOMMON: {
+      ATTACK: ['Blood for Blood', 'Carnage', 'Dropkick', 'Hemokinesis', 'Pummel', 'Rampage', 'Reckless Charge', 'Searing Blow', 'Sever Soul', 'Uppercut', 'Whirlwind'],
+      SKILL: ['Battle Trance', 'Bloodletting', 'Burning Pact', 'Disarm', 'Dual Wield', 'Entrench', 'Flame Barrier', 'Ghostly Armor', 'Infernal Blade', 'Intimidate', 'Power Through', 'Rage', 'Second Wind', 'Seeing Red', 'Sentinel', 'Shockwave', 'Spot Weakness'],
+      POWER: ['Berserk', 'Combust', 'Dark Embrace', 'Evolve', 'Feel No Pain', 'Fire Breathing', 'Inflame', 'Juggernaut', 'Metallicize', 'Rupture'],
+    },
+    RARE: {
+      ATTACK: ['Bludgeon', 'Feed', 'Fiend Fire', 'Immolate', 'Reaper'],
+      SKILL: ['Double Tap', 'Exhume', 'Impervious', 'Limit Break', 'Offering'],
+      POWER: ['Barricade', 'Brutality', 'Corruption', 'Demon Form'],
+    },
   },
   SILENT: {
-    COMMON: ['Acrobatics', 'Backflip', 'Bane', 'Blade Dance', 'Cloak and Dagger', 'Dagger Spray', 'Dagger Throw', 'Deadly Poison', 'Deflect', 'Dodge and Roll', 'Flying Knee', 'Outmaneuver', 'Piercing Wail', 'Poisoned Stab', 'Prepared', 'Quick Slash', 'Slice', 'Sneaky Strike', 'Sucker Punch'],
-    UNCOMMON: ['Accuracy', 'All-Out Attack', 'Backstab', 'Blur', 'Bouncing Flask', 'Calculated Gamble', 'Caltrops', 'Catalyst', 'Choke', 'Concentrate', 'Crippling Cloud', 'Dash', 'Distraction', 'Endless Agony', 'Escape Plan', 'Eviscerate', 'Expertise', 'Finisher', 'Flechettes', 'Footwork', 'Heel Hook', 'Infinite Blades', 'Leg Sweep', 'Masterful Stab', 'Noxious Fumes', 'Predator', 'Reflex', 'Riddle with Holes', 'Setup', 'Skewer', 'Tactician', 'Terror', 'Well-Laid Plans'],
-    RARE: ['A Thousand Cuts', 'Adrenaline', 'After Image', 'Alchemize', 'Bullet Time', 'Burst', 'Corpse Explosion', 'Die Die Die', 'Doppelganger', 'Envenom', 'Glass Knife', 'Grand Finale', 'Malaise', 'Nightmare', 'Phantasmal Killer', 'Storm of Steel', 'Tools of the Trade', 'Unload', 'Wraith Form'],
+    COMMON: {
+      ATTACK: ['Bane', 'Dagger Spray', 'Dagger Throw', 'Flying Knee', 'Poisoned Stab', 'Quick Slash', 'Slice', 'Sneaky Strike', 'Sucker Punch'],
+      SKILL: ['Acrobatics', 'Backflip', 'Blade Dance', 'Cloak and Dagger', 'Deadly Poison', 'Deflect', 'Dodge and Roll', 'Outmaneuver', 'Piercing Wail', 'Prepared'],
+      POWER: [],
+    },
+    UNCOMMON: {
+      ATTACK: ['All-Out Attack', 'Backstab', 'Choke', 'Dash', 'Endless Agony', 'Eviscerate', 'Finisher', 'Flechettes', 'Heel Hook', 'Masterful Stab', 'Predator', 'Riddle with Holes', 'Skewer'],
+      SKILL: ['Blur', 'Bouncing Flask', 'Calculated Gamble', 'Catalyst', 'Concentrate', 'Crippling Cloud', 'Distraction', 'Escape Plan', 'Expertise', 'Leg Sweep', 'Reflex', 'Setup', 'Tactician', 'Terror'],
+      POWER: ['Accuracy', 'Caltrops', 'Footwork', 'Infinite Blades', 'Noxious Fumes', 'Well-Laid Plans'],
+    },
+    RARE: {
+      ATTACK: ['Die Die Die', 'Glass Knife', 'Grand Finale', 'Unload'],
+      SKILL: ['Adrenaline', 'Alchemize', 'Bullet Time', 'Burst', 'Corpse Explosion', 'Doppelganger', 'Malaise', 'Nightmare', 'Phantasmal Killer', 'Storm of Steel'],
+      POWER: ['A Thousand Cuts', 'After Image', 'Envenom', 'Tools of the Trade', 'Wraith Form'],
+    },
   },
   DEFECT: {
-    COMMON: ['Ball Lightning', 'Barrage', 'Beam Cell', 'Charge Battery', 'Claw', 'Cold Snap', 'Compile Driver', 'Coolheaded', 'Go for the Eyes', 'Hologram', 'Leap', 'Rebound', 'Recursion', 'Stack', 'Steam Barrier', 'Streamline', 'Sweeping Beam', 'TURBO'],
-    UNCOMMON: ['Aggregate', 'Auto-Shields', 'Blizzard', 'Boot Sequence', 'Bullseye', 'Capacitor', 'Chaos', 'Chill', 'Consume', 'Darkness', 'Defragment', 'Doom and Gloom', 'Double Energy', 'Equilibrium', 'FTL', 'Force Field', 'Fusion', 'Genetic Algorithm', 'Glacier', 'Heatsinks', 'Hello World', 'Loop', 'Melter', 'Overclock', 'Recycle', 'Reinforced Body', 'Reprogram', 'Rip and Tear', 'Scrape', 'Self Repair', 'Skim', 'Static Discharge', 'Storm', 'Sunder', 'Tempest', 'White Noise'],
-    RARE: ['All for One', 'Amplify', 'Biased Cognition', 'Buffer', 'Core Surge', 'Creative AI', 'Echo Form', 'Electrodynamics', 'Fission', 'Hyperbeam', 'Machine Learning', 'Meteor Strike', 'Multi-Cast', 'Rainbow', 'Reboot', 'Seek', 'Thunder Strike'],
+    COMMON: {
+      ATTACK: ['Ball Lightning', 'Barrage', 'Beam Cell', 'Claw', 'Cold Snap', 'Compile Driver', 'Go for the Eyes', 'Rebound', 'Streamline', 'Sweeping Beam'],
+      SKILL: ['Charge Battery', 'Coolheaded', 'Hologram', 'Leap', 'Recursion', 'Stack', 'Steam Barrier', 'TURBO'],
+      POWER: [],
+    },
+    UNCOMMON: {
+      ATTACK: ['Blizzard', 'Bullseye', 'Doom and Gloom', 'FTL', 'Melter', 'Rip and Tear', 'Scrape', 'Sunder'],
+      SKILL: ['Aggregate', 'Auto-Shields', 'Boot Sequence', 'Chaos', 'Chill', 'Consume', 'Darkness', 'Double Energy', 'Equilibrium', 'Force Field', 'Fusion', 'Genetic Algorithm', 'Glacier', 'Overclock', 'Recycle', 'Reinforced Body', 'Reprogram', 'Skim', 'Tempest', 'White Noise'],
+      POWER: ['Capacitor', 'Defragment', 'Heatsinks', 'Hello World', 'Loop', 'Self Repair', 'Static Discharge', 'Storm'],
+    },
+    RARE: {
+      ATTACK: ['All for One', 'Core Surge', 'Hyperbeam', 'Meteor Strike', 'Thunder Strike'],
+      SKILL: ['Amplify', 'Fission', 'Multi-Cast', 'Rainbow', 'Reboot', 'Seek'],
+      POWER: ['Biased Cognition', 'Buffer', 'Creative AI', 'Echo Form', 'Electrodynamics', 'Machine Learning'],
+    },
   },
   WATCHER: {
-    COMMON: ['Bowling Bash', 'Consecrate', 'Crescendo', 'Crush Joints', 'Cut Through Fate', 'Empty Body', 'Empty Fist', 'Evaluate', 'Flurry of Blows', 'Flying Sleeves', 'Follow-Up', 'Halt', 'Just Lucky', 'Pressure Points', 'Prostrate', 'Protect', 'Sash Whip', 'Third Eye', 'Tranquility'],
-    UNCOMMON: ['Battle Hymn', 'Carve Reality', 'Collect', 'Conclude', 'Deceive Reality', 'Empty Mind', 'Fasting', 'Fear No Evil', 'Foreign Influence', 'Foresight', 'Indignation', 'Inner Peace', 'Like Water', 'Meditate', 'Mental Fortress', 'Nirvana', 'Perseverance', 'Pray', 'Reach Heaven', 'Rushdown', 'Sanctity', 'Sands of Time', 'Signature Move', 'Simmering Fury', 'Study', 'Swivel', 'Talk to the Hand', 'Tantrum', 'Wallop', 'Wave of the Hand', 'Weave', 'Wheel Kick', 'Windmill Strike', 'Worship', 'Wreath of Flame'],
-    RARE: ['Alpha', 'Blasphemy', 'Brilliance', 'Conjure Blade', 'Deus Ex Machina', 'Deva Form', 'Devotion', 'Establishment', 'Judgment', 'Lesson Learned', 'Master Reality', 'Omniscience', 'Ragnarok', 'Scrawl', 'Spirit Shield', 'Vault', 'Wish'],
+    COMMON: {
+      ATTACK: ['Bowling Bash', 'Consecrate', 'Crush Joints', 'Cut Through Fate', 'Empty Fist', 'Flurry of Blows', 'Flying Sleeves', 'Follow-Up', 'Just Lucky', 'Sash Whip'],
+      SKILL: ['Crescendo', 'Empty Body', 'Evaluate', 'Halt', 'Pressure Points', 'Prostrate', 'Protect', 'Third Eye', 'Tranquility'],
+      POWER: [],
+    },
+    UNCOMMON: {
+      ATTACK: ['Carve Reality', 'Conclude', 'Fear No Evil', 'Reach Heaven', 'Sands of Time', 'Talk to the Hand', 'Tantrum', 'Wallop', 'Wheel Kick', 'Windmill Strike'],
+      SKILL: ['Collect', 'Deceive Reality', 'Empty Mind', 'Foreign Influence', 'Indignation', 'Inner Peace', 'Meditate', 'Perseverance', 'Pray', 'Sanctity', 'Swivel', 'Wave of the Hand', 'Worship', 'Wreath of Flame'],
+      POWER: ['Battle Hymn', 'Fasting', 'Foresight', 'Like Water', 'Mental Fortress', 'Nirvana', 'Rushdown', 'Simmering Fury', 'Study'],
+    },
+    RARE: {
+      ATTACK: ['Brilliance', 'Lesson Learned', 'Ragnarok'],
+      SKILL: ['Alpha', 'Blasphemy', 'Conjure Blade', 'Deus Ex Machina', 'Judgment', 'Omniscience', 'Scrawl', 'Spirit Shield', 'Vault', 'Wish'],
+      POWER: ['Deva Form', 'Devotion', 'Establishment', 'Master Reality'],
+    },
+  },
+  COLORLESS: {
+    UNCOMMON: {
+      ATTACK: ['Swift Strike', 'Dramatic Entrance', 'Flash of Steel', 'Mind Blast'],
+      SKILL: ['Good Instincts', 'Bandage Up', 'Blind', 'Dark Shackles', 'Deep Breath', 'Discovery', 'Enlightenment', 'Finesse', 'Forethought', 'Impatience', 'Jack of All Trades', 'Madness', 'Panacea', 'Panic Button', 'Purity', 'Thinking Ahead', 'Trip'],
+      POWER: [],
+    },
+    RARE: {
+      ATTACK: ['Hand of Greed'],
+      SKILL: ['Apotheosis', 'Chrysalis', 'Master of Strategy', 'Metamorphosis', 'Secret Technique', 'Secret Weapon', 'The Bomb', 'Transmutation', 'Violence'],
+      POWER: ['Magnetism', 'Mayhem', 'Panache', 'Sadistic Nature'],
+    },
   },
 };
 
@@ -71,11 +159,31 @@ class RewardState {
     this.startingHallwayRare = CONSTANTS.HALLWAY_RARE_DEFAULT;
     this.startingEliteRare = CONSTANTS.ELITE_RARE_DEFAULT;
     this.potionChance = CONSTANTS.POTION_CHANCE_START;
-    this.totalCommons = 0;
-    this.totalUncommons = 0;
-    this.totalRares = 0;
+    // Combat rewards (type-agnostic)
+    this.combatCommons = 0;
+    this.combatUncommons = 0;
+    this.combatRares = 0;
     this.totalPotions = 0;
     this.totalGold = 0;
+    this.totalShops = 0;
+    // Shop cards tracked by type-rarity
+    this.shopCards = {
+      ATTACK: { COMMON: 0, UNCOMMON: 0, RARE: 0 },
+      SKILL: { COMMON: 0, UNCOMMON: 0, RARE: 0 },
+      POWER: { COMMON: 0, UNCOMMON: 0, RARE: 0 },
+      COLORLESS_UNCOMMON: 0,
+      COLORLESS_RARE: 0,
+    };
+  }
+  // Totals for display (combat + shop)
+  get totalCommons() { 
+    return this.combatCommons + this.shopCards.ATTACK.COMMON + this.shopCards.SKILL.COMMON + this.shopCards.POWER.COMMON; 
+  }
+  get totalUncommons() { 
+    return this.combatUncommons + this.shopCards.ATTACK.UNCOMMON + this.shopCards.SKILL.UNCOMMON + this.shopCards.POWER.UNCOMMON + this.shopCards.COLORLESS_UNCOMMON; 
+  }
+  get totalRares() { 
+    return this.combatRares + this.shopCards.ATTACK.RARE + this.shopCards.SKILL.RARE + this.shopCards.POWER.RARE + this.shopCards.COLORLESS_RARE; 
   }
   resetAllProbabilities() {
     this.hallwayCommon = CONSTANTS.HALLWAY_COMMON_START;
@@ -98,13 +206,36 @@ function generateReward(commonChance, uncommonChance, rareChance) {
   return 'COMMON';
 }
 
-function processFight(state, fightType) {
+// Shop rarity probabilities: 54% common, 37% uncommon, 9% rare
+const SHOP_COMMON = 54.0;
+const SHOP_UNCOMMON = 37.0;
+const SHOP_RARE = 9.0;
+
+function processFight(state, fightType, includeShopCards = false) {
+  // Shop: track visit count, optionally add cards to totals
+  if (fightType === '$') {
+    state.totalShops++;
+    if (includeShopCards) {
+      // Shop has 5 colored card slots: 2 attacks, 2 skills, 1 power
+      // Each rolls 54% common, 37% uncommon, 9% rare
+      const types = ['ATTACK', 'ATTACK', 'SKILL', 'SKILL', 'POWER'];
+      for (const type of types) {
+        const reward = generateReward(SHOP_COMMON, SHOP_UNCOMMON, SHOP_RARE);
+        state.shopCards[type][reward]++;
+      }
+      // Plus 1 guaranteed colorless uncommon and 1 guaranteed colorless rare
+      state.shopCards.COLORLESS_UNCOMMON++;
+      state.shopCards.COLORLESS_RARE++;
+    }
+    return;
+  }
+  
   const isElite = fightType === 'E';
   const isBoss = fightType === 'B';
   
   if (isBoss) {
     // Boss: 3 guaranteed rares, resets pity timer
-    state.totalRares += 3;
+    state.combatRares += 3;
     state.resetAllProbabilities();
   } else {
     // Normal/Elite: roll for each of 3 cards
@@ -113,9 +244,9 @@ function processFight(state, fightType) {
       const uncommonChance = isElite ? state.eliteUncommon : state.hallwayUncommon;
       const rareChance = isElite ? state.eliteRare : state.hallwayRare;
       const reward = generateReward(commonChance, uncommonChance, rareChance);
-      if (reward === 'COMMON') { state.totalCommons++; state.adjustProbabilitiesForCommon(); }
-      else if (reward === 'UNCOMMON') { state.totalUncommons++; }
-      else { state.totalRares++; state.resetAllProbabilities(); }
+      if (reward === 'COMMON') { state.combatCommons++; state.adjustProbabilitiesForCommon(); }
+      else if (reward === 'UNCOMMON') { state.combatUncommons++; }
+      else { state.combatRares++; state.resetAllProbabilities(); }
     }
   }
   
@@ -138,17 +269,34 @@ function processFight(state, fightType) {
   state.totalGold += goldMin + Math.floor(Math.random() * (goldMax - goldMin + 1));
 }
 
-function runSimulation(path, iterations, startingRareChance, onProgress) {
+function runSimulation(path, iterations, startingRareChance, includeShopCards, onProgress) {
   let totalCommons = 0, totalUncommons = 0, totalRares = 0, totalPotions = 0, totalGold = 0;
   const commonDist = {}, uncommonDist = {}, rareDist = {}, potionDist = {}, goldDist = {};
+  
+  // Combat-only distributions (type-agnostic)
+  const combatCommonDist = {}, combatUncommonDist = {}, combatRareDist = {};
+  
+  // Shop card distributions by type-rarity
+  const shopDists = {
+    ATTACK: { COMMON: {}, UNCOMMON: {}, RARE: {} },
+    SKILL: { COMMON: {}, UNCOMMON: {}, RARE: {} },
+    POWER: { COMMON: {}, UNCOMMON: {}, RARE: {} },
+    COLORLESS_UNCOMMON: {},
+    COLORLESS_RARE: {},
+  };
+  
   const progressInterval = Math.max(1, Math.floor(iterations / 100));
+  
+  // Shop count is deterministic (same for every iteration)
+  const numShops = (path.match(/\$/g) || []).length;
 
   for (let i = 0; i < iterations; i++) {
     const state = new RewardState();
     state.hallwayRare = startingRareChance;
     state.eliteRare = startingRareChance + 7.0;
-    for (const fight of path) processFight(state, fight);
+    for (const fight of path) processFight(state, fight, includeShopCards);
     
+    // Total distributions (for display)
     totalCommons += state.totalCommons;
     totalUncommons += state.totalUncommons;
     totalRares += state.totalRares;
@@ -159,6 +307,24 @@ function runSimulation(path, iterations, startingRareChance, onProgress) {
     rareDist[state.totalRares] = (rareDist[state.totalRares] || 0) + 1;
     potionDist[state.totalPotions] = (potionDist[state.totalPotions] || 0) + 1;
     goldDist[state.totalGold] = (goldDist[state.totalGold] || 0) + 1;
+    
+    // Combat-only distributions (for probability calc)
+    combatCommonDist[state.combatCommons] = (combatCommonDist[state.combatCommons] || 0) + 1;
+    combatUncommonDist[state.combatUncommons] = (combatUncommonDist[state.combatUncommons] || 0) + 1;
+    combatRareDist[state.combatRares] = (combatRareDist[state.combatRares] || 0) + 1;
+    
+    // Track shop distributions by type-rarity
+    if (includeShopCards) {
+      for (const type of ['ATTACK', 'SKILL', 'POWER']) {
+        for (const rarity of ['COMMON', 'UNCOMMON', 'RARE']) {
+          const count = state.shopCards[type][rarity];
+          shopDists[type][rarity][count] = (shopDists[type][rarity][count] || 0) + 1;
+        }
+      }
+      shopDists.COLORLESS_UNCOMMON[state.shopCards.COLORLESS_UNCOMMON] = (shopDists.COLORLESS_UNCOMMON[state.shopCards.COLORLESS_UNCOMMON] || 0) + 1;
+      shopDists.COLORLESS_RARE[state.shopCards.COLORLESS_RARE] = (shopDists.COLORLESS_RARE[state.shopCards.COLORLESS_RARE] || 0) + 1;
+    }
+    
     if (i % progressInterval === 0 && onProgress) onProgress(Math.round((i / iterations) * 100));
   }
 
@@ -168,12 +334,27 @@ function runSimulation(path, iterations, startingRareChance, onProgress) {
     return result;
   };
 
+  // Convert shop distributions to percentages
+  const shopDistsPercent = {
+    ATTACK: { COMMON: toPercent(shopDists.ATTACK.COMMON), UNCOMMON: toPercent(shopDists.ATTACK.UNCOMMON), RARE: toPercent(shopDists.ATTACK.RARE) },
+    SKILL: { COMMON: toPercent(shopDists.SKILL.COMMON), UNCOMMON: toPercent(shopDists.SKILL.UNCOMMON), RARE: toPercent(shopDists.SKILL.RARE) },
+    POWER: { COMMON: toPercent(shopDists.POWER.COMMON), UNCOMMON: toPercent(shopDists.POWER.UNCOMMON), RARE: toPercent(shopDists.POWER.RARE) },
+    COLORLESS_UNCOMMON: toPercent(shopDists.COLORLESS_UNCOMMON),
+    COLORLESS_RARE: toPercent(shopDists.COLORLESS_RARE),
+  };
+
   return {
     avgCommons: totalCommons / iterations, avgUncommons: totalUncommons / iterations,
     avgRares: totalRares / iterations, avgPotions: totalPotions / iterations,
-    avgGold: totalGold / iterations, commonsDist: toPercent(commonDist),
-    uncommonsDist: toPercent(uncommonDist), raresDist: toPercent(rareDist),
+    avgGold: totalGold / iterations, numShops, includeShopCards, 
+    commonsDist: toPercent(commonDist), uncommonsDist: toPercent(uncommonDist), raresDist: toPercent(rareDist),
     potionsDist: toPercent(potionDist), goldDist: toPercent(goldDist),
+    // Combat-only distributions for probability calc
+    combatCommonsDist: toPercent(combatCommonDist),
+    combatUncommonsDist: toPercent(combatUncommonDist),
+    combatRaresDist: toPercent(combatRareDist),
+    // Shop distributions by type-rarity
+    shopDists: shopDistsPercent,
   };
 }
 
@@ -279,38 +460,110 @@ function calculateCardProbabilities(selectedCards, character, results) {
   if (!results) return null;
   const charData = CHARACTERS[character];
   const cardDb = CARD_DATABASE[character];
+  
+  // Categorize selected cards by type and rarity
+  const targets = {
+    ATTACK: { COMMON: 0, UNCOMMON: 0, RARE: 0 },
+    SKILL: { COMMON: 0, UNCOMMON: 0, RARE: 0 },
+    POWER: { COMMON: 0, UNCOMMON: 0, RARE: 0 },
+  };
   let targetCommons = 0, targetUncommons = 0, targetRares = 0;
+  
   for (const card of selectedCards) {
-    if (cardDb.COMMON.includes(card)) targetCommons++;
-    else if (cardDb.UNCOMMON.includes(card)) targetUncommons++;
-    else if (cardDb.RARE.includes(card)) targetRares++;
+    for (const type of ['ATTACK', 'SKILL', 'POWER']) {
+      for (const rarity of ['COMMON', 'UNCOMMON', 'RARE']) {
+        if ((cardDb[rarity]?.[type] || []).includes(card)) {
+          targets[type][rarity]++;
+          if (rarity === 'COMMON') targetCommons++;
+          else if (rarity === 'UNCOMMON') targetUncommons++;
+          else targetRares++;
+        }
+      }
+    }
   }
   if (targetCommons + targetUncommons + targetRares === 0) return null;
 
-  const commonTimesDist = calculateTimesSeenDistribution(charData.commons, targetCommons, results.commonsDist);
-  const uncommonTimesDist = calculateTimesSeenDistribution(charData.uncommons, targetUncommons, results.uncommonsDist);
-  const rareTimesDist = calculateTimesSeenDistribution(charData.rares, targetRares, results.raresDist);
-  let combinedDist = convolveDistributions(convolveDistributions(commonTimesDist, uncommonTimesDist), rareTimesDist);
+  // Get pool sizes by type-rarity
+  const pools = {
+    ATTACK: { COMMON: (cardDb.COMMON?.ATTACK || []).length, UNCOMMON: (cardDb.UNCOMMON?.ATTACK || []).length, RARE: (cardDb.RARE?.ATTACK || []).length },
+    SKILL: { COMMON: (cardDb.COMMON?.SKILL || []).length, UNCOMMON: (cardDb.UNCOMMON?.SKILL || []).length, RARE: (cardDb.RARE?.SKILL || []).length },
+    POWER: { COMMON: (cardDb.COMMON?.POWER || []).length, UNCOMMON: (cardDb.UNCOMMON?.POWER || []).length, RARE: (cardDb.RARE?.POWER || []).length },
+  };
+
+  // Combat rewards: use combat-only distributions with total pool sizes (type-agnostic draws)
+  const combatCommonDist = calculateTimesSeenDistribution(charData.commons, targetCommons, results.combatCommonsDist);
+  const combatUncommonDist = calculateTimesSeenDistribution(charData.uncommons, targetUncommons, results.combatUncommonsDist);
+  const combatRareDist = calculateTimesSeenDistribution(charData.rares, targetRares, results.combatRaresDist);
+  let combinedDist = convolveDistributions(convolveDistributions(combatCommonDist, combatUncommonDist), combatRareDist);
+
+  // Shop rewards: use type-specific distributions
+  if (results.includeShopCards && results.numShops > 0 && results.shopDists) {
+    for (const type of ['ATTACK', 'SKILL', 'POWER']) {
+      for (const rarity of ['COMMON', 'UNCOMMON', 'RARE']) {
+        const numTargets = targets[type][rarity];
+        const poolSize = pools[type][rarity];
+        if (numTargets > 0 && poolSize > 0) {
+          const shopTypeDist = results.shopDists[type]?.[rarity];
+          if (shopTypeDist && Object.keys(shopTypeDist).length > 0) {
+            const typeTimesDist = calculateTimesSeenDistribution(poolSize, numTargets, shopTypeDist);
+            combinedDist = convolveDistributions(combinedDist, typeTimesDist);
+          }
+        }
+      }
+    }
+  }
 
   const probAtLeastOnce = 1.0 - (combinedDist[0] || 0) / 100.0;
   let expectedTimesSeen = 0;
   for (const [k, pct] of Object.entries(combinedDist)) expectedTimesSeen += parseInt(k) * (pct / 100.0);
 
-  return { targetCommons, targetUncommons, targetRares, totalTargets: targetCommons + targetUncommons + targetRares,
-    probAtLeastOnce, expectedTimesSeen, timesSeenDist: combinedDist };
+  return { 
+    targetCommons, targetUncommons, targetRares, 
+    totalTargets: targetCommons + targetUncommons + targetRares,
+    probAtLeastOnce, expectedTimesSeen, timesSeenDist: combinedDist,
+    includeShopCards: results.includeShopCards, numShops: results.numShops || 0,
+  };
 }
 
-const PathInput = ({ label, value, onChange, color }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-    <label style={{ fontFamily: 'Georgia, serif', fontSize: '14px', color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '2px' }}>{label}</label>
-    <input type="text" value={value} onChange={(e) => onChange(e.target.value.toUpperCase().replace(/[^HEB]/g, ''))}
-      placeholder="e.g., HHHEHHEHHE" style={{ padding: '12px 16px', fontSize: '18px', fontFamily: 'monospace',
-        letterSpacing: '4px', background: 'rgba(0,0,0,0.4)', border: `2px solid ${color}40`, borderRadius: '4px', color: '#fff', outline: 'none' }} />
-    <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#666' }}>
-      {value.length} fights • {(value.match(/H/g) || []).length}H • {(value.match(/E/g) || []).length}E • {(value.match(/B/g) || []).length}B
+const PathInput = ({ label, value, onChange, color }) => {
+  const charColors = { H: '#9ca3af', E: '#f59e0b', B: '#ef4444', '$': '#22c55e' };
+  
+  const renderColoredPath = (text) => {
+    return text.split('').map((char, i) => (
+      <span key={i} style={{ color: charColors[char] || '#fff' }}>{char}</span>
+    ));
+  };
+  
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <label style={{ fontFamily: 'Georgia, serif', fontSize: '14px', color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '2px' }}>{label}</label>
+      <div style={{ position: 'relative' }}>
+        <input 
+          type="text" 
+          value={value} 
+          onChange={(e) => onChange(e.target.value.toUpperCase().replace(/[^HEB\$]/g, ''))}
+          placeholder="e.g., HHHEHHEHHE" 
+          style={{ 
+            padding: '12px 16px', fontSize: '18px', fontFamily: 'monospace',
+            letterSpacing: '4px', background: 'rgba(0,0,0,0.4)', 
+            border: `2px solid ${color}40`, borderRadius: '4px', 
+            color: 'transparent', caretColor: '#fff', outline: 'none', width: '100%', boxSizing: 'border-box'
+          }} 
+        />
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          padding: '12px 16px', fontSize: '18px', fontFamily: 'monospace',
+          letterSpacing: '4px', pointerEvents: 'none', whiteSpace: 'pre'
+        }}>
+          {value ? renderColoredPath(value) : <span style={{ color: '#666' }}>e.g., HHHEHHEHHE</span>}
+        </div>
+      </div>
+      <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#666' }}>
+        {value.replace(/\$/g, '').length} fights • {(value.match(/H/g) || []).length}H • {(value.match(/E/g) || []).length}E • {(value.match(/B/g) || []).length}B{(value.match(/\$/g) || []).length > 0 ? ` • ${(value.match(/\$/g) || []).length}$` : ''}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const StatDisplay = ({ label, value, diff, color }) => {
   const diffColor = diff > 0.01 ? '#4ade80' : diff < -0.01 ? '#f87171' : '#666';
@@ -371,6 +624,9 @@ const PathResults = ({ results, label, color, otherResults }) => {
       <StatDisplay label="Rares" value={results.avgRares} diff={getDiff('avgRares')} color="#fbbf24" />
       <StatDisplay label="Potions" value={results.avgPotions} diff={getDiff('avgPotions')} color="#a78bfa" />
       <StatDisplay label="Gold" value={results.avgGold} diff={getDiff('avgGold')} color="#fcd34d" />
+      {(results.numShops > 0 || (otherResults && otherResults.numShops > 0)) && (
+        <StatDisplay label="Shops" value={results.numShops} diff={getDiff('numShops')} color="#22c55e" />
+      )}
       <div style={{ display: 'flex', gap: '8px', marginTop: '20px', flexWrap: 'wrap' }}>
         {distOptions.map(opt => (
           <button key={opt.key} onClick={() => setSelectedDist(opt.key)} style={{ padding: '6px 12px', fontSize: '11px', fontFamily: 'monospace', background: selectedDist === opt.key ? `${color}30` : 'rgba(0,0,0,0.3)', border: `1px solid ${selectedDist === opt.key ? color : 'transparent'}`, borderRadius: '4px', color: selectedDist === opt.key ? color : '#888', cursor: 'pointer' }}>{opt.label}</button>
@@ -400,7 +656,14 @@ const CardProbabilityPanel = ({ results1, results2, path1, path2 }) => {
   const probResults = useMemo(() => calculateCardProbabilities(Array.from(selectedCards), character, selectedResults), [selectedCards, character, selectedResults]);
   const counts = useMemo(() => {
     let c = 0, u = 0, r = 0;
-    for (const card of selectedCards) { if (cardDb.COMMON.includes(card)) c++; else if (cardDb.UNCOMMON.includes(card)) u++; else if (cardDb.RARE.includes(card)) r++; }
+    const allCommons = [...(cardDb.COMMON?.ATTACK || []), ...(cardDb.COMMON?.SKILL || []), ...(cardDb.COMMON?.POWER || [])];
+    const allUncommons = [...(cardDb.UNCOMMON?.ATTACK || []), ...(cardDb.UNCOMMON?.SKILL || []), ...(cardDb.UNCOMMON?.POWER || [])];
+    const allRares = [...(cardDb.RARE?.ATTACK || []), ...(cardDb.RARE?.SKILL || []), ...(cardDb.RARE?.POWER || [])];
+    for (const card of selectedCards) { 
+      if (allCommons.includes(card)) c++; 
+      else if (allUncommons.includes(card)) u++; 
+      else if (allRares.includes(card)) r++; 
+    }
     return { common: c, uncommon: u, rare: r, total: c + u + r };
   }, [selectedCards, cardDb]);
 
@@ -427,14 +690,17 @@ const CardProbabilityPanel = ({ results1, results2, path1, path2 }) => {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '24px' }}>
         <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '16px', maxHeight: '500px', overflowY: 'auto' }}>
-          {['COMMON', 'UNCOMMON', 'RARE'].map(rarity => (
+          {['COMMON', 'UNCOMMON', 'RARE'].map(rarity => {
+            const rarityData = cardDb[rarity] || {};
+            const allCards = [...(rarityData.ATTACK || []), ...(rarityData.SKILL || []), ...(rarityData.POWER || [])];
+            return (
             <div key={rarity} style={{ marginBottom: '16px' }}>
-              <div style={{ fontFamily: 'Georgia, serif', fontSize: '13px', color: rarity === 'COMMON' ? '#9ca3af' : rarity === 'UNCOMMON' ? '#60a5fa' : '#fbbf24', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px', paddingBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>{rarity} ({cardDb[rarity].length})</div>
+              <div style={{ fontFamily: 'Georgia, serif', fontSize: '13px', color: rarity === 'COMMON' ? '#9ca3af' : rarity === 'UNCOMMON' ? '#60a5fa' : '#fbbf24', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px', paddingBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>{rarity} ({allCards.length})</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {cardDb[rarity].map(card => <CardButton key={card} name={card} rarity={rarity} selected={selectedCards.has(card)} onClick={() => toggleCard(card)} />)}
+                {allCards.map(card => <CardButton key={card} name={card} rarity={rarity} selected={selectedCards.has(card)} onClick={() => toggleCard(card)} />)}
               </div>
             </div>
-          ))}
+          )})}
         </div>
         <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '16px' }}>
           <div style={{ fontFamily: 'Georgia, serif', fontSize: '12px', color: '#666', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '16px' }}>Results</div>
@@ -443,12 +709,16 @@ const CardProbabilityPanel = ({ results1, results2, path1, path2 }) => {
               <div style={{ fontFamily: 'monospace', fontSize: '12px', marginBottom: '16px' }}>
                 <div style={{ color: '#888', marginBottom: '8px' }}>Path: <span style={{ color: '#fff' }}>{selectedPath === '1' ? path1 : path2}</span></div>
                 <div style={{ color: '#888', marginBottom: '8px' }}>Character: <span style={{ color: '#fff' }}>{CHARACTERS[character].name}</span></div>
-                <div style={{ color: '#888', marginBottom: '16px' }}>Pool: {charData.commons}C / {charData.uncommons}U / {charData.rares}R</div>
+                <div style={{ color: '#888', marginBottom: '8px' }}>Pool: {charData.commons}C / {charData.uncommons}U / {charData.rares}R</div>
+                {probResults.numShops > 0 && (
+                  <div style={{ color: '#888', marginBottom: '16px' }}>Shops: <span style={{ color: probResults.includeShopCards ? '#22c55e' : '#666' }}>{probResults.numShops} {probResults.includeShopCards ? '(included)' : '(not included)'}</span></div>
+                )}
+                
                 <div style={{ background: 'rgba(16,185,129,0.1)', borderRadius: '6px', padding: '12px', marginBottom: '12px' }}>
                   <div style={{ color: '#666', marginBottom: '4px' }}>Prob. seeing at least once:</div>
                   <div style={{ fontSize: '24px', fontWeight: 600, color: '#10b981' }}>{(probResults.probAtLeastOnce * 100).toFixed(2)}%</div>
                 </div>
-                <div style={{ background: 'rgba(139,92,246,0.1)', borderRadius: '6px', padding: '12px' }}>
+                <div style={{ background: 'rgba(139,92,246,0.1)', borderRadius: '6px', padding: '12px', marginBottom: '12px' }}>
                   <div style={{ color: '#666', marginBottom: '4px' }}>Expected times seen:</div>
                   <div style={{ fontSize: '24px', fontWeight: 600, color: '#a78bfa' }}>{probResults.expectedTimesSeen.toFixed(2)}</div>
                 </div>
@@ -463,10 +733,11 @@ const CardProbabilityPanel = ({ results1, results2, path1, path2 }) => {
 };
 
 function SlayRewardCalculator() {
-  const [path1, setPath1] = useState('HHHEHHEHHE');
-  const [path2, setPath2] = useState('HHHHHEEHHH');
+  const [path1, setPath1] = useState('HHHHHEHHEBHH$HHHEHHEBHHHHHE$HHE');
+  const [path2, setPath2] = useState('HHHEHHEHHEBHH$HEHHEHHEBHHHEHHE$HHE');
   const [iterations, setIterations] = useState(100000);
   const [startingRare, setStartingRare] = useState(-2);
+  const [includeShopCards, setIncludeShopCards] = useState(true);
   const [results1, setResults1] = useState(null);
   const [results2, setResults2] = useState(null);
   const [progress, setProgress] = useState(0);
@@ -476,14 +747,14 @@ function SlayRewardCalculator() {
     if (!path1 || !path2) return;
     setIsRunning(true); setProgress(0);
     setTimeout(() => {
-      const r1 = runSimulation(path1, iterations, startingRare, (p) => setProgress(p / 2));
+      const r1 = runSimulation(path1, iterations, startingRare, includeShopCards, (p) => setProgress(p / 2));
       setResults1(r1); setProgress(50);
       setTimeout(() => {
-        const r2 = runSimulation(path2, iterations, startingRare, (p) => setProgress(50 + p / 2));
+        const r2 = runSimulation(path2, iterations, startingRare, includeShopCards, (p) => setProgress(50 + p / 2));
         setResults2(r2); setProgress(100); setIsRunning(false);
       }, 10);
     }, 10);
-  }, [path1, path2, iterations, startingRare]);
+  }, [path1, path2, iterations, startingRare, includeShopCards]);
 
   useEffect(() => { runCalculation(); }, []);
 
@@ -493,7 +764,7 @@ function SlayRewardCalculator() {
       <header style={{ padding: '40px 20px 30px', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'relative' }}>
         <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '6px', color: '#666', marginBottom: '12px', fontFamily: 'monospace' }}>Slay the Spire</div>
         <h1 style={{ fontFamily: 'Georgia, serif', fontSize: 'clamp(24px, 5vw, 42px)', fontWeight: 700, background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', margin: 0, letterSpacing: '2px' }}>Reward Distribution Calculator</h1>
-        <p style={{ marginTop: '16px', color: '#666', fontSize: '14px', maxWidth: '600px', marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>Monte Carlo simulation for card reward distributions. Use <span style={{ fontFamily: 'monospace', color: '#9ca3af' }}>H</span> for Hallway, <span style={{ fontFamily: 'monospace', color: '#f59e0b' }}>E</span> for Elite, and <span style={{ fontFamily: 'monospace', color: '#ef4444' }}>B</span> for Boss.</p>
+        <p style={{ marginTop: '16px', color: '#666', fontSize: '14px', maxWidth: '600px', marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>Monte Carlo simulation for card reward distributions. Use <span style={{ fontFamily: 'monospace', color: '#9ca3af' }}>H</span> for Hallway, <span style={{ fontFamily: 'monospace', color: '#f59e0b' }}>E</span> for Elite, <span style={{ fontFamily: 'monospace', color: '#ef4444' }}>B</span> for Boss, and <span style={{ fontFamily: 'monospace', color: '#22c55e' }}>$</span> for Shop.</p>
       </header>
       <main style={{ maxWidth: '1400px', margin: '0 auto', padding: '30px 20px' }}>
         <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '24px', marginBottom: '30px', border: '1px solid rgba(255,255,255,0.05)' }}>
@@ -505,13 +776,17 @@ function SlayRewardCalculator() {
             <div>
               <label style={{ display: 'block', fontFamily: 'Georgia, serif', fontSize: '12px', color: '#666', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px' }}>Iterations</label>
               <select value={iterations} onChange={(e) => setIterations(parseInt(e.target.value))} style={{ padding: '10px 16px', fontSize: '14px', fontFamily: 'monospace', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
-                <option value={10000}>10,000</option><option value={50000}>50,000</option><option value={100000}>100,000</option><option value={500000}>500,000</option><option value={1000000}>1,000,000</option>
+                <option value={10000}>10,000</option><option value={50000}>50,000</option><option value={100000}>100,000</option><option value={500000}>500,000</option><option value={1000000}>1,000,000</option><option value={5000000}>5,000,000</option>
               </select>
             </div>
             <div>
               <label style={{ display: 'block', fontFamily: 'Georgia, serif', fontSize: '12px', color: '#666', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px' }}>Starting Rare %</label>
               <input type="number" value={startingRare} onChange={(e) => setStartingRare(parseInt(e.target.value) || 0)} min={-2} max={100} style={{ padding: '10px 16px', fontSize: '14px', fontFamily: 'monospace', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: '#fff', width: '80px' }} />
             </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '10px 0' }}>
+              <input type="checkbox" checked={includeShopCards} onChange={(e) => setIncludeShopCards(e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#22c55e', cursor: 'pointer' }} />
+              <span style={{ fontFamily: 'Georgia, serif', fontSize: '13px', color: includeShopCards ? '#22c55e' : '#666' }}>Include shop cards in rewards</span>
+            </label>
             <button onClick={runCalculation} disabled={isRunning} style={{ padding: '12px 32px', fontSize: '14px', fontFamily: 'Georgia, serif', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '2px', background: isRunning ? 'rgba(139,92,246,0.3)' : 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)', border: 'none', borderRadius: '6px', color: '#fff', cursor: isRunning ? 'not-allowed' : 'pointer', boxShadow: isRunning ? 'none' : '0 4px 20px rgba(139,92,246,0.3)' }}>{isRunning ? 'Calculating...' : 'Calculate'}</button>
             {isRunning && (
               <div style={{ flex: 1, minWidth: '200px' }}>
@@ -533,12 +808,12 @@ function SlayRewardCalculator() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', fontSize: '13px', color: '#777', lineHeight: 1.7 }}>
             <div><strong style={{ color: '#aaa' }}>Card Rewards:</strong> Each fight gives 3 cards. Hallways: 65%C/37%U/-2%R. Elites: 55%C/40%U/5%R. Bosses: 3 guaranteed rares.</div>
             <div><strong style={{ color: '#aaa' }}>Pity Timer:</strong> Each Common -1% common, +1% rare. Getting Rare resets to defaults.</div>
-            <div><strong style={{ color: '#aaa' }}>Potions:</strong> 40% base. Get: -10%, Miss: +10%. Boss resets to 40% after.</div>
-            <div><strong style={{ color: '#aaa' }}>Card Probability:</strong> Uses hypergeometric probability (without replacement within fights).</div>
+            <div><strong style={{ color: '#aaa' }}>Shops:</strong> 2 Attack + 2 Skill + 1 Power slot (54%C/37%U/9%R each) + 1 Colorless Uncommon + 1 Colorless Rare.</div>
+            <div><strong style={{ color: '#aaa' }}>Card Probability:</strong> Uses hypergeometric (combat) combined with slot-based probability (shops).</div>
           </div>
         </div>
       </main>
-      <footer style={{ textAlign: 'center', padding: '30px 20px', color: '#444', fontSize: '12px', fontFamily: 'monospace' }}>Based on Slay the Spire mechanics • Not affiliated with Mega Crit Game</footer>
+      <footer style={{ textAlign: 'center', padding: '30px 20px', color: '#444', fontSize: '12px', fontFamily: 'monospace' }}>Based on Slay the Spire mechanics • Not affiliated with Mega Crit Games</footer>
     </div>
   );
 }
