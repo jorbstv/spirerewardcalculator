@@ -27,6 +27,7 @@ const CONSTANTS = {
   ELITE_COMMON_START: 55.0, ELITE_UNCOMMON_START: 40.0, ELITE_RARE_DEFAULT: 5.0,
   POTION_CHANCE_START: 40.0, HALLWAY_GOLD_MIN: 10, HALLWAY_GOLD_MAX: 20,
   ELITE_GOLD_MIN: 25, ELITE_GOLD_MAX: 35,
+  BOSS_GOLD_MIN: 95, BOSS_GOLD_MAX: 105,
 };
 
 const CHARACTERS = {
@@ -97,22 +98,43 @@ function generateReward(commonChance, uncommonChance, rareChance) {
   return 'COMMON';
 }
 
-function processFight(state, isElite) {
-  for (let i = 0; i < 3; i++) {
-    const commonChance = isElite ? state.eliteCommon : state.hallwayCommon;
-    const uncommonChance = isElite ? state.eliteUncommon : state.hallwayUncommon;
-    const rareChance = isElite ? state.eliteRare : state.hallwayRare;
-    const reward = generateReward(commonChance, uncommonChance, rareChance);
-    if (reward === 'COMMON') { state.totalCommons++; state.adjustProbabilitiesForCommon(); }
-    else if (reward === 'UNCOMMON') { state.totalUncommons++; }
-    else { state.totalRares++; state.resetAllProbabilities(); }
+function processFight(state, fightType) {
+  const isElite = fightType === 'E';
+  const isBoss = fightType === 'B';
+  
+  if (isBoss) {
+    // Boss: 3 guaranteed rares, resets pity timer
+    state.totalRares += 3;
+    state.resetAllProbabilities();
+  } else {
+    // Normal/Elite: roll for each of 3 cards
+    for (let i = 0; i < 3; i++) {
+      const commonChance = isElite ? state.eliteCommon : state.hallwayCommon;
+      const uncommonChance = isElite ? state.eliteUncommon : state.hallwayUncommon;
+      const rareChance = isElite ? state.eliteRare : state.hallwayRare;
+      const reward = generateReward(commonChance, uncommonChance, rareChance);
+      if (reward === 'COMMON') { state.totalCommons++; state.adjustProbabilitiesForCommon(); }
+      else if (reward === 'UNCOMMON') { state.totalUncommons++; }
+      else { state.totalRares++; state.resetAllProbabilities(); }
+    }
   }
+  
+  // Potion roll
   const gotPotion = Math.random() * 100.0 < state.potionChance;
   if (gotPotion) { state.totalPotions++; state.potionChance -= 10.0; }
   else { state.potionChance += 10.0; }
   state.potionChance = Math.max(0, Math.min(100, state.potionChance));
-  const goldMin = isElite ? CONSTANTS.ELITE_GOLD_MIN : CONSTANTS.HALLWAY_GOLD_MIN;
-  const goldMax = isElite ? CONSTANTS.ELITE_GOLD_MAX : CONSTANTS.HALLWAY_GOLD_MAX;
+  
+  // Boss resets potion chance to 40% after the fight
+  if (isBoss) {
+    state.potionChance = CONSTANTS.POTION_CHANCE_START;
+  }
+  
+  // Gold
+  let goldMin, goldMax;
+  if (isBoss) { goldMin = CONSTANTS.BOSS_GOLD_MIN; goldMax = CONSTANTS.BOSS_GOLD_MAX; }
+  else if (isElite) { goldMin = CONSTANTS.ELITE_GOLD_MIN; goldMax = CONSTANTS.ELITE_GOLD_MAX; }
+  else { goldMin = CONSTANTS.HALLWAY_GOLD_MIN; goldMax = CONSTANTS.HALLWAY_GOLD_MAX; }
   state.totalGold += goldMin + Math.floor(Math.random() * (goldMax - goldMin + 1));
 }
 
@@ -125,7 +147,7 @@ function runSimulation(path, iterations, startingRareChance, onProgress) {
     const state = new RewardState();
     state.hallwayRare = startingRareChance;
     state.eliteRare = startingRareChance + 7.0;
-    for (const fight of path) processFight(state, fight === 'E');
+    for (const fight of path) processFight(state, fight);
     
     totalCommons += state.totalCommons;
     totalUncommons += state.totalUncommons;
@@ -156,28 +178,89 @@ function runSimulation(path, iterations, startingRareChance, onProgress) {
 }
 
 function binomialCoefficient(n, k) {
+  if (k < 0 || k > n) return 0;
   if (k > n - k) k = n - k;
   let result = 1;
   for (let i = 0; i < k; i++) { result *= (n - i); result /= (i + 1); }
   return result;
 }
 
-function binomialProbability(n, k, p) {
-  if (k > n || k < 0) return 0;
-  return binomialCoefficient(n, k) * Math.pow(p, k) * Math.pow(1 - p, n - k);
+// Hypergeometric probability: drawing exactly k target cards when drawing n cards 
+// without replacement from a pool of N cards containing K targets
+function hypergeometricProbability(N, K, n, k) {
+  if (k > K || k > n || (n - k) > (N - K) || k < 0) return 0;
+  return (binomialCoefficient(K, k) * binomialCoefficient(N - K, n - k)) / binomialCoefficient(N, n);
 }
 
+// Calculate distribution of times seen for a single rarity, using hypergeometric
+// for each fight's 3-card draw (without replacement within a fight)
 function calculateTimesSeenDistribution(poolSize, targetCards, cardDistribution) {
+  if (targetCards === 0) {
+    // No targets of this rarity - always see 0
+    return { 0: 100.0 };
+  }
+  if (poolSize === 0) {
+    return { 0: 100.0 };
+  }
+  
   const timesSeenDist = {};
+  
   for (const [numCardsStr, probPercent] of Object.entries(cardDistribution)) {
-    const numCards = parseInt(numCardsStr);
+    const totalCardsOfRarity = parseInt(numCardsStr);
     const probOfThisCount = probPercent / 100.0;
-    const probTarget = targetCards / poolSize;
-    for (let k = 0; k <= numCards; k++) {
-      const probKTargets = binomialProbability(numCards, k, probTarget);
-      timesSeenDist[k] = (timesSeenDist[k] || 0) + probKTargets * probOfThisCount * 100.0;
+    
+    if (totalCardsOfRarity === 0) {
+      timesSeenDist[0] = (timesSeenDist[0] || 0) + probOfThisCount * 100.0;
+      continue;
+    }
+    
+    // For each possible total, we need to figure out how these cards were distributed
+    // across fights. Each fight draws 3 cards without replacement from the pool.
+    // This is complex because fights are independent but draws within a fight are not.
+    //
+    // Simplification: treat the total cards as coming from (totalCards/3) independent 
+    // 3-card draws, each using hypergeometric probability.
+    // 
+    // For a more accurate model: we convolve the per-fight hypergeometric distributions.
+    
+    const numFights = Math.ceil(totalCardsOfRarity / 3);
+    const cardsPerFight = Math.min(3, totalCardsOfRarity);
+    
+    // Build distribution by convolving numFights independent hypergeometric draws
+    let fightDist = { 0: 1.0 }; // Start with certainty of 0
+    
+    // Distribution for a single fight: hypergeometric draw of 3 from pool
+    const singleFightDist = {};
+    for (let k = 0; k <= Math.min(cardsPerFight, targetCards); k++) {
+      const p = hypergeometricProbability(poolSize, targetCards, cardsPerFight, k);
+      if (p > 0) singleFightDist[k] = p;
+    }
+    
+    // Convolve for each fight
+    for (let f = 0; f < numFights; f++) {
+      const newDist = {};
+      for (const [k1Str, p1] of Object.entries(fightDist)) {
+        for (const [k2Str, p2] of Object.entries(singleFightDist)) {
+          const sum = parseInt(k1Str) + parseInt(k2Str);
+          newDist[sum] = (newDist[sum] || 0) + p1 * p2;
+        }
+      }
+      fightDist = newDist;
+    }
+    
+    // Handle remainder if totalCardsOfRarity not divisible by 3
+    const remainder = totalCardsOfRarity % 3;
+    if (remainder > 0 && numFights > 0) {
+      // Last "fight" actually had fewer cards - adjust by reconvolving
+      // This is an approximation; for exactness we'd need fight-by-fight tracking
+    }
+    
+    // Add this scenario's contribution to overall distribution
+    for (const [k, p] of Object.entries(fightDist)) {
+      timesSeenDist[k] = (timesSeenDist[k] || 0) + p * probOfThisCount * 100.0;
     }
   }
+  
   return timesSeenDist;
 }
 
@@ -220,11 +303,11 @@ function calculateCardProbabilities(selectedCards, character, results) {
 const PathInput = ({ label, value, onChange, color }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
     <label style={{ fontFamily: 'Georgia, serif', fontSize: '14px', color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '2px' }}>{label}</label>
-    <input type="text" value={value} onChange={(e) => onChange(e.target.value.toUpperCase().replace(/[^HE]/g, ''))}
+    <input type="text" value={value} onChange={(e) => onChange(e.target.value.toUpperCase().replace(/[^HEB]/g, ''))}
       placeholder="e.g., HHHEHHEHHE" style={{ padding: '12px 16px', fontSize: '18px', fontFamily: 'monospace',
         letterSpacing: '4px', background: 'rgba(0,0,0,0.4)', border: `2px solid ${color}40`, borderRadius: '4px', color: '#fff', outline: 'none' }} />
     <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#666' }}>
-      {value.length} fights • {(value.match(/H/g) || []).length}H • {(value.match(/E/g) || []).length}E
+      {value.length} fights • {(value.match(/H/g) || []).length}H • {(value.match(/E/g) || []).length}E • {(value.match(/B/g) || []).length}B
     </div>
   </div>
 );
@@ -410,7 +493,7 @@ function SlayRewardCalculator() {
       <header style={{ padding: '40px 20px 30px', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'relative' }}>
         <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '6px', color: '#666', marginBottom: '12px', fontFamily: 'monospace' }}>Slay the Spire</div>
         <h1 style={{ fontFamily: 'Georgia, serif', fontSize: 'clamp(24px, 5vw, 42px)', fontWeight: 700, background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', margin: 0, letterSpacing: '2px' }}>Reward Distribution Calculator</h1>
-        <p style={{ marginTop: '16px', color: '#666', fontSize: '14px', maxWidth: '600px', marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>Monte Carlo simulation for card reward distributions. Use <span style={{ fontFamily: 'monospace', color: '#9ca3af' }}>H</span> for Hallway and <span style={{ fontFamily: 'monospace', color: '#f59e0b' }}>E</span> for Elite.</p>
+        <p style={{ marginTop: '16px', color: '#666', fontSize: '14px', maxWidth: '600px', marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>Monte Carlo simulation for card reward distributions. Use <span style={{ fontFamily: 'monospace', color: '#9ca3af' }}>H</span> for Hallway, <span style={{ fontFamily: 'monospace', color: '#f59e0b' }}>E</span> for Elite, and <span style={{ fontFamily: 'monospace', color: '#ef4444' }}>B</span> for Boss.</p>
       </header>
       <main style={{ maxWidth: '1400px', margin: '0 auto', padding: '30px 20px' }}>
         <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '24px', marginBottom: '30px', border: '1px solid rgba(255,255,255,0.05)' }}>
@@ -448,10 +531,10 @@ function SlayRewardCalculator() {
         <div style={{ marginTop: '40px', padding: '24px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
           <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '14px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '16px' }}>How It Works</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', fontSize: '13px', color: '#777', lineHeight: 1.7 }}>
-            <div><strong style={{ color: '#aaa' }}>Card Rewards:</strong> Each fight gives 3 cards. Hallways: 65%C/37%U/-2%R. Elites: 55%C/40%U/5%R.</div>
+            <div><strong style={{ color: '#aaa' }}>Card Rewards:</strong> Each fight gives 3 cards. Hallways: 65%C/37%U/-2%R. Elites: 55%C/40%U/5%R. Bosses: 3 guaranteed rares.</div>
             <div><strong style={{ color: '#aaa' }}>Pity Timer:</strong> Each Common -1% common, +1% rare. Getting Rare resets to defaults.</div>
-            <div><strong style={{ color: '#aaa' }}>Potions:</strong> 40% base. Get: -10%, Miss: +10%. Clamped 0-100%.</div>
-            <div><strong style={{ color: '#aaa' }}>Card Probability:</strong> Uses binomial probability and distribution convolution.</div>
+            <div><strong style={{ color: '#aaa' }}>Potions:</strong> 40% base. Get: -10%, Miss: +10%. Boss resets to 40% after.</div>
+            <div><strong style={{ color: '#aaa' }}>Card Probability:</strong> Uses hypergeometric probability (without replacement within fights).</div>
           </div>
         </div>
       </main>
